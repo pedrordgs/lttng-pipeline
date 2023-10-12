@@ -1,0 +1,72 @@
+---
+lttng_address: "{{ hostvars[groups['test'][0]].ansible_host }}"
+lttng_session_name: "sample-session"
+
+es_addresses: "{%for host in groups['node']%}http://{{hostvars[host]['ansible_host']}}:31111{% if not loop.last %}, {% endif %}{% endfor %}"
+
+lttng_elk: true
+babeltrace_vanilla: false
+lttng_vanilla: false
+lttng_live: true
+babeltrace_discard: false
+
+lttng_extra_context: ["pid", "tid", "hostname", "procname", "ppid"]
+lttng_tracepoints: []
+lttng_syscalls:
+  [
+    "read",
+    "write",
+    "open",
+    "close",
+    "stat",
+    "fstat",
+    "lstat",
+    "lseek",
+    "pread64",
+    "pwrite64",
+    "readv",
+    "writev",
+    "socket",
+    "connect",
+    "accept",
+    "sendto",
+    "recvfrom",
+    "sendmsg",
+    "recvmsg",
+    "bind",
+    "listen",
+    "socketpair",
+    "setsockopt",
+    "getsockopt",
+    "fsync",
+    "fdatasync",
+    "truncate",
+    "ftruncate",
+    "rename",
+    "creat",
+    "unlink",
+    "readlink",
+    "mknod",
+    "fstatfs",
+    "readahead",
+    "setxattr",
+    "lsetxattr",
+    "fsetxattr",
+    "getxattr",
+    "lgetxattr",
+    "fgetxattr",
+    "listxattr",
+    "llistxattr",
+    "flistxattr",
+    "removexattr",
+    "lremovexattr",
+    "fremovexattr",
+    "openat",
+    "mknodat",
+    "newfstatat",
+    "unlinkat",
+    "renameat",
+    "readlinkat",
+    "accept4",
+    "renameat2",
+  ]

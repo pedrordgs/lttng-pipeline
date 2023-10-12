@@ -1,0 +1,131 @@
+---
+- include_vars: group_vars/kube_cluster.yml
+
+- name: Delete LTTng results directory (if it exists)
+  become: yes
+  file:
+    path: "{{ tracing_data_dir }}/lttng/lttng_data"
+    state: absent
+
+- name: Create LTTng results directory
+  file:
+    path: "{{ tracing_data_dir }}/lttng/lttng_data"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    recurse: yes
+
+- name: Start Dstat
+  shell: screen -S "FILEBENCH_DSTAT_{{run_number}}" -d -m python3 /usr/share/dstat/dstat --time --cpu --mem --net --disk --swap --output "{{ tracing_data_dir }}/lttng/dstat.csv"
+
+- name: Pause for 10 seconds
+  pause:
+    seconds: 10
+
+- name: Running babeltrace (on same host) [run={{run_number}}]
+  docker_container:
+    name: babeltrace
+    image: pedrordgs/babeltrace
+    state: started
+    tty: yes
+    recreate: yes
+    detach: yes
+    network_mode: host
+    volumes:
+      - "{{ tracing_data_dir }}/lttng/lttng_data/:/tmp/lttng-traces/"
+    env:
+      LTTNG_ADDRESS: "{{ lttng_address }}"
+      ES_ADDRESSES: "{{ es_addresses }}"
+      ES_USER: "{{ dio_es_user }}"
+      ES_PWD: "{{ dio_es_pass }}"
+      ES_INDEX_NAME: "{{ dio_es_index }}"
+      ELK_ENABLED: "{{ lttng_elk|string }}"
+      BABELTRACE_DUMMY: "{{ babeltrace_vanilla|string }}"
+      BABELTRACE_DISCARD: "{{ babeltrace_discard|string }}"
+      LTTNG_LIVE: "True"
+  register: babeltrace_container
+
+- name: Running filebench (with LTTng) [run={{run_number}}]
+  docker_container:
+    name: lttng_filebench
+    image: pedrordgs/lttng_filebench
+    state: started
+    tty: yes
+    recreate: yes
+    detach: yes
+    pid_mode: host
+    network_mode: host
+    privileged: true
+    capabilities:
+      - all
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - /usr/src:/usr/src:ro
+      - /sys/kernel/debug/:/sys/kernel/debug/:ro
+      - "{{ tracing_data_dir }}/lttng/lttng_data:/tmp/lttng-traces/"
+      - "{{ filebench_data_dir }}:/tmp/filebench"
+      - "{{ filebench_dir }}/fileserver.f:/filebench/workloads/fileserver.f"
+    env:
+      LTTNG_SESSION_NAME: "{{ lttng_session_name }}"
+      LTTNG_SYSCALLS: "{{ lttng_syscalls | join(';') }}"
+      LTTNG_TRACEPOINTS: "{{ lttng_tracepoints | join(';') }}"
+      LTTNG_EXTRA_CONTEXT: "{{ lttng_extra_context | join(';') }}"
+      LTTNG_LIVE: "{{ lttng_live|string }}"
+      LTTNG_DEFAULT: "{{ lttng_vanilla|string }}"
+      POST_TRACE_ANALYSIS: "False"
+  register: lttng_container
+
+- name: Wait until trace ends
+  shell: docker wait babeltrace
+
+- name: Pause for 10 seconds
+  pause:
+    seconds: 10
+
+- name: Stop dstat
+  shell: screen -XS "FILEBENCH_DSTAT_{{run_number}}" quit
+  ignore_errors: true
+
+- name: Kill all screen sessions
+  shell: pkill screen
+  ignore_errors: true
+  become: yes
+
+- name: Save lttng logs
+  shell: docker logs lttng_filebench > "{{ tracing_data_dir }}/lttng/docker_logs.txt" 2>&1
+
+- name: Save babeltrace logs
+  shell: docker logs babeltrace > "{{ tracing_data_dir }}/lttng/babeltrace_docker_logs.txt" 2>&1
+  when: babeltrace_discard or lttng_elk
+
+# If we don't discard babeltrace2 results, events will be send to stdout, so we need to just
+# tail docker logs to get execution time and ignore all printed events
+- name: Save babeltrace logs
+  shell: docker logs --tail 2 babeltrace > "{{ tracing_data_dir }}/lttng/babeltrace_docker_logs.txt" 2>&1
+  when: babeltrace_vanilla and (not babeltrace_discard)
+
+- name: Save babeltrace logs
+  shell: docker logs --tail 11 babeltrace > "{{ tracing_data_dir }}/lttng/babeltrace_docker_logs.txt" 2>&1
+  when: (not babeltrace_vanilla) and (not lttng_elk) and (not babeltrace_discard)
+
+- name: Stops and remove LTTng container
+  docker_container:
+    name: lttng_filebench
+    state: absent
+
+- name: Stops and remove babeltrace container
+  docker_container:
+    name: babeltrace
+    state: absent
+
+- shell: (cd "{{ tracing_data_dir }}/lttng/"; find "$PWD"/* -maxdepth 0 -type f)
+  register: files_to_copy
+
+- name: Save results
+  fetch:
+    src: "{{ file_item }}"
+    dest: "final_test_results/filebench/{{setup_res_dir}}/run_{{run_number}}/"
+    flat: yes
+  with_items: "{{ files_to_copy.stdout_lines }}"
+  loop_control:
+    loop_var: file_item

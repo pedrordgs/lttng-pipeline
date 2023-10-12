@@ -41,18 +41,16 @@
   gather_facts: no
   become: no
   roles:
-    - { role: tests/rocksdb/load, when: caches_clean, tags: ['never','load'] }
+    - { role: rocksdb/load, when: caches_clean, tags: ['never','load'] }
+
+
 
 - name: Vanilla
   hosts: test
   gather_facts: no
   become: no
   roles:
-    - { role: tests/rocksdb/vanilla,
-        when: caches_clean,
-        tags: ['never','vanilla'],
-        setup_res_dir: "vanilla_ycsb_wa"
-      }
+    - { role: rocksdb/vanilla, when: caches_clean, tags: ['never','vanilla'] }
 
 
 - name: DIO
@@ -60,37 +58,11 @@
   gather_facts: yes
   become: no
   roles:
-    - { role: tests/rocksdb/dio,
-        when: caches_clean,
-        tags: ['never','dio'],
-        filter_paths: 'true',
-        dio_target_events: ["open", "openat", "creat", "read", "pread64", "write", "pwrite64", "close"],
-        setup_res_dir: "dio_ycsb_wa",
-        dio_detailed_data: true,
-        dio_detail_with_content: "off",
-        dio_detail_with_arg_paths: false,
-        dio_detail_with_sock_addr: false,
-        dio_detail_with_sock_data: false
-      }
+    - { role: rocksdb/dio, when: caches_clean, tags: ['never','dio'], filter_paths: 'true', dio_tareget_events: ["open", "openat", "creat", "read", "pread64", "write", "pwrite64", "close", "fsync", "fdatasync"] }
 
 - name: Strace
   hosts: test
   gather_facts: no
   become: no
   roles:
-    - { role: tests/rocksdb/strace,
-        when: caches_clean,
-        tags: ['never','strace'],
-        setup_res_dir: "strace_ycsb_wa"
-      }
-
-- name: Sysdig
-  hosts: test
-  gather_facts: no
-  become: no
-  roles:
-    - { role: tests/rocksdb/sysdig,
-        when: caches_clean,
-        tags: ['never','sysdig'],
-        setup_res_dir: "sysdig_ycsb_wa"
-      }
+    - { role: rocksdb/strace, when: caches_clean, tags: ['never','strace'] }

@@ -5,7 +5,7 @@ metadata:
   name: dio-cluster
   namespace: default
 spec:
-  version: {{ ELK_version }}
+  version: 7.16.2
   http:
     service:
       spec:
@@ -26,6 +26,9 @@ spec:
   # dedicated master nodes
   - name: node
     count: {{ groups['node'] | length }}
+    config:
+      node.master: true
+      node.data: true
     podTemplate:
       spec:
         nodeSelector:

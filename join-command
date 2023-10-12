@@ -1,1 +1,1 @@
-kubeadm join 192.168.112.126:6443 --token tqoruf.iw3e6thr1i685p40 --discovery-token-ca-cert-hash sha256:6de426ade4288b0cc1a84ce0bc01018ddf406f70cb03c3cc6040f887f6c0014a 
+kubeadm join 192.168.112.73:6443 --token uyv13t.3etgpfczef30006q --discovery-token-ca-cert-hash sha256:2e25d8928eec31e2a233e81465bc79f937211d92f91aea7cfad1174720743af1 
